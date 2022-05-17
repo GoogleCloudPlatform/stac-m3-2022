@@ -1,0 +1,6 @@
+{# each worker gets partition_id % worker_count == worker_id #}
+{% for i in range(mounts.files|length) %}
+{% if i % stac_m3_worker_count == item %}
+{{ stac_m3_dir }}/data/{{ i + 1 }}
+{% endif %}
+{% endfor %}

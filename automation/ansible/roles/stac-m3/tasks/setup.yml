@@ -1,0 +1,107 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: set path
+  set_fact:
+    path: '{{ stac_m3_dir }}/run/{{ test_name }}'
+
+- name: create {{ test_name }} directory
+  file:
+    path: '{{ path }}'
+    state: directory
+
+- name: copy {{ test_name }} code
+  synchronize:
+    src: "{{ stac_m3_antuco_code_dir if test_name == 'antuco' else stac_m3_kanaga_code_dir }}/"
+    dest: '{{ path }}'
+    archive: no
+    recursive: yes
+
+- name: copy sample RRDs
+  synchronize:
+    src: '{{ stac_m3_test_harness_dir }}/{{ test_name[0]|upper }}{{ test_name[1:] }}/sample_rrd/'
+    dest: '{{ path }}'
+    archive: no
+    recursive: yes
+
+- name: link stacenvmode to stacenvshard
+  file:
+    path: '{{ path }}/stacenvmode'
+    src: stacenvshard
+    state: link
+
+- name: create run directories
+  file:
+    path: '{{ path }}/run{{ item }}'
+    state: directory
+  loop: '{{ range(1, stac_m3_test_run_count+1) }}'
+
+# one per set of database partitions per worker
+- name: create db directories
+  file:
+    path: '{{ path }}/db{{ item }}'
+    state: directory
+  loop: '{{ range(stac_m3_worker_count) }}'
+
+- name: find mount points
+  find:
+    paths:
+      - '{{ stac_m3_dir }}/data'
+    file_type: directory
+  register: mounts
+
+# list of partitions for each worker
+- name: generate par.txt
+  template:
+    src: par.txt.j2
+    dest: '{{ path }}/db{{ item }}/par.txt'
+  loop: '{{ range(stac_m3_worker_count) }}'
+
+# datasets have associated sym files that are required for tests to run
+- name: copy sym to db
+  loop: '{{ range(stac_m3_worker_count) }}'
+  copy:
+    src: sym
+    dest: '{{ path }}/db{{ item }}'
+
+- name: copy startup script to db
+  loop: '{{ range(stac_m3_worker_count) }}'
+  copy:
+    remote_src: yes
+    src: '{{ path }}/onstartup{{ test_name }}.q'
+    dest: '{{ path }}/db{{ item }}'
+
+- name: generate templates
+  loop:
+    - stacenv
+  template:
+    src: '{{ item }}-{{ test_name }}.j2'
+    dest: '{{ path }}/{{ item }}'
+    mode: '0644'
+
+- name: generate templates
+  loop:
+    - nodes.txt
+    - stacenvshard
+  template:
+    src: '{{ item }}.j2'
+    dest: '{{ path }}/{{ item }}'
+    mode: '0644'
+
+# FIX: default iostat command isn't compatible with recent Ubuntu
+- name: fix iostat
+  replace:
+    path: '{{ path }}/writeiostat.sh'
+    regexp: IOSTAT_CMD="iostat -d -m"
+    replace: IOSTAT_CMD="iostat -d -m -s"

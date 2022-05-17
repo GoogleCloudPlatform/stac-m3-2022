@@ -1,0 +1,9 @@
+group_vars
+hosts
+hosts.gcp.yml
+inventory.json
+roles/kdb/files
+roles/stac-m3/files/process/*
+roles/stac-m3/files/antuco/*
+roles/stac-m3/files/kanaga/*
+roles/stac-m3/files/sym

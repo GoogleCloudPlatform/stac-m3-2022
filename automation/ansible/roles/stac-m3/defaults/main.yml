@@ -1,0 +1,56 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+stac_m3_packages:
+  - dstat
+  - iotop
+  - htop
+  - netcat
+  - numactl
+  - python
+  - rlwrap
+  - rsync
+  - sysstat
+  - unzip
+  - zip
+
+stac_m3_disable_services_by_os:
+  Ubuntu18.04:
+    - atd
+    - cron
+    - lxd-containers
+    - sshguard
+    - snapd
+  Ubuntu20.04:
+    - atd
+    - cron
+    - chrony
+    - multipathd
+    - snapd
+    - unattended-upgrades
+
+stac_m3_disable_services: '{{ stac_m3_disable_services_by_os[ansible_distribution + ansible_distribution_version] }}'
+
+stac_m3_dir: /m3
+stac_m3_tmp_dir: /m3/tmp
+stac_m3_test_harness_dir: ../../../../../code/stac-m3-test-harness/trunk
+stac_m3_antuco_code_dir: ../../../../../code/stac-m3-pack-for-kdb-rev-3-0/branches/kdb4u2/code
+stac_m3_kanaga_code_dir: ../../../../../code/stac-m3-pack-for-kdb-rev-3-0-kanaga/branches/kdb4u2-kanaga/code
+stac_m3_automation_dir: ../../../../../code/stac-m3-pack-for-kdb-rev-3-0/branches/kdb4u2/automation
+stac_m3_test_run_count: 5
+stac_m3_execute_on_first_node: yes
+stac_m3_worker_count: '{{ ansible_processor_count }}'
+
+stac_m3_apply_tuning: yes
+stac_m3_use_smt: yes

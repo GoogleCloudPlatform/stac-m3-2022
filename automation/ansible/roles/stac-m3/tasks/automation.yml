@@ -1,0 +1,97 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: set path
+  set_fact:
+    path: '{{ stac_m3_dir }}/run/automation'
+
+- name: create automation directory
+  file:
+    path: '{{ path }}'
+    state: directory
+
+- name: copy automation directory
+  synchronize:
+    src: '{{ stac_m3_automation_dir }}/'
+    dest: '{{ path }}'
+    archive: no
+    recursive: yes
+
+- name: copy test script
+  copy:
+    src: audit.sh
+    dest: '{{ path }}/audit.sh'
+    mode: 0755
+
+- name: generate runm3.sh template
+  loop:
+    - antuco
+    - kanaga
+  loop_control:
+    loop_var: stac_m3_test_type
+  template:
+    src: runm3.sh.j2
+    dest: '{{ path }}/runm3-{{ stac_m3_test_type }}.sh'
+    mode: 0755
+
+- name: remove default runm3.sh
+  file:
+    path: '{{ path }}/runm3.sh'
+    state: absent
+
+- name: clone Spectre/Meltdown checker
+  git:
+    repo: https://github.com/speed47/spectre-meltdown-checker
+    dest: '{{ path }}/spectre-meltdown-checker'
+    force: yes
+
+# FIX: non-executable automation scripts
+- name: find shell scripts
+  register: automation_scripts
+  find:
+    paths:
+      - '{{ path }}'
+    excludes:
+      - spectre-meltdown-checker
+    recurse: yes
+    file_type: file
+
+# FIX: non-executable automation scripts
+- name: enable execution
+  loop: '{{ automation_scripts.files }}'
+  loop_control:
+    label: '{{ item.path }}'
+  file:
+    path: '{{ item.path }}'
+    mode: +x
+
+# FIX: runm3.sh looks in the wrong place for this script
+- name: copy process_ios-dist.sh
+  copy:
+    src: '{{ path }}//audit_tools/process_ios-dist.sh'
+    dest: '{{ path }}//audit_tools/tools_harness/process_ios-dist.sh'
+    remote_src: yes
+
+# FIX: default script tries to use ipmitool
+- name: patch reboot script
+  copy:
+    src: reboot-distributed-nodes.sh
+    dest: '{{ path }}/utilities/reboot-distributed-nodes.sh'
+
+# FIX: runprep tries to run bash scripts with sh
+- name: patch runprep
+  replace:
+    path: '{{ path }}/audit_tools/runprep'
+    regexp: '^sh checksut.sh'
+    replace: 'sh checksut_shard.sh'

@@ -1,0 +1,12 @@
+#!/bin/bash
+
+pushd {{ stac_m3_dir }}/run/kanaga
+
+for i in {1..{{ stac_m3_test_run_count }}}; do
+    gcloud logging write --severity INFO stac-m3 "Running Kanaga read tests (iteration $i)"
+    time ./runtestskanagadist.sh $i 2>&1 | tee run$i/log
+done
+
+{{ stac_m3_dir }}/run/test/post.sh
+
+popd

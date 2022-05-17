@@ -1,0 +1,8 @@
+{% if stac_m3_execute_on_first_node %}
+    {%- set hosts = groups['stac'] %}
+{% else %}
+    {%- set hosts = groups['stac'][1:] %}
+{% endif %}
+{% for host in hosts %}
+{{ hostvars[host].ansible_hostname }}
+{% endfor %}

@@ -1,0 +1,51 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: apply tuning parameters
+  block:
+
+    - name: install tune.sh
+      template:
+        src: tune.sh.j2
+        dest: /usr/local/bin/tune.sh
+        owner: root
+        group: root
+        mode: 0755
+
+    - name: install rc.local
+      copy:
+        src: rc.local
+        dest: /etc/rc.local
+        owner: root
+        group: root
+        mode: 0755
+
+    - name: run tune.sh
+      service:
+        name: rc-local
+        state: restarted
+
+  when: stac_m3_apply_tuning
+
+- name: disable unnecessary services
+  service:
+    name: '{{ item }}'
+    state: stopped
+    enabled: no
+  loop: '{{ stac_m3_disable_services }}'
+
+# gather facts again in case SMT has changed the number of available vCPUs
+- name: gather facts
+  setup:
+    gather_subset: all

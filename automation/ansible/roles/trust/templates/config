@@ -1,0 +1,5 @@
+Host *
+    StrictHostKeyChecking no
+{% if trust_devnull %}
+    UserKnownHostsFile /dev/null
+{% endif %}

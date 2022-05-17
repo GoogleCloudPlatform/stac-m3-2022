@@ -1,0 +1,14 @@
+#!/bin/bash
+
+pushd {{ stac_m3_dir }}/run/antuco
+
+for i in {1..{{ stac_m3_test_run_count }}}; do
+    gcloud logging write --severity INFO stac-m3 "Running Shasta tests (iteration $i)"
+    time ./runtestsshasta.sh $i 2>&1 | tee run$i/log
+    time ./runwritetestsshasta.sh $i 2>&1 | tee -a run$i/log
+    rm -rf {{ stac_m3_tmp_dir }}/tmpdb/*
+done
+
+{{ stac_m3_dir }}/run/test/post.sh
+
+popd

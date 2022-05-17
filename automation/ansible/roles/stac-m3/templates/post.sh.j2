@@ -1,0 +1,14 @@
+#!/bin/bash
+
+QHOME={{ stac_m3_dir }}/run/q {{ stac_m3_dir }}/run/q/q postproc.q -ok -exit
+
+for i in {1..{{ stac_m3_test_run_count }}}; do
+    pushd run$i
+    bash {{ stac_m3_dir }}/run/automation/audit_tools/process_ios-dist.sh $i
+    cp extract_run_$i.ios {{ stac_m3_tmp_dir }}
+    popd
+done
+
+pushd {{ stac_m3_tmp_dir }}
+bash {{ stac_m3_dir }}/run/automation/audit_tools/tools_harness/consolidate_ios.sh
+popd

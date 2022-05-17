@@ -1,0 +1,64 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+- name: If user is root and root login is banned, permit it with public keys only
+  replace:
+    dest: /etc/ssh/sshd_config
+    regexp: '^(PermitRootLogin)\s+no\s*$'
+    replace: '\1 without-password'
+  when: trust_user == 'root'
+  become: yes
+  become_user: root
+  notify: restart-sshd
+
+- block:
+
+  - name: Get details of {{ trust_user }}
+    getent:
+      database: passwd
+      key: '{{ trust_user }}'
+
+  - name: Set home directory of {{ trust_user }}
+    set_fact:
+      trust_home_dir: '{{ getent_passwd[trust_user][4] }}'
+    when: not trust_home_dir
+
+  - name: Generate an SSH keypair for {{ trust_user }}
+    command: /usr/bin/ssh-keygen -f '{{ trust_home_dir }}/.ssh/id_rsa' -N ''
+    args:
+      creates: '{{ trust_home_dir }}/.ssh/id_rsa'
+
+  - name: Get the public key material of {{ trust_user }}
+    slurp:
+      src: '{{ trust_home_dir }}/.ssh/id_rsa.pub'
+    register: pubkey
+
+  - name: Trust all cluster public keys of {{ trust_user }}
+    authorized_key:
+      user: '{{ trust_user }}'
+      key: '{{ hostvars[item].pubkey.content | b64decode }}'
+    with_items: '{{ trust_target_hosts }}'
+
+  - name: Copy standard SSH config for {{ trust_user }}
+    template:
+      src: config
+      dest: '{{ trust_home_dir }}/.ssh'
+      owner: '{{ trust_user }}'
+      group: '{{ trust_group }}'
+      mode: 0600
+
+  become: yes
+  become_user: '{{ trust_user }}'
+  when: inventory_hostname in trust_target_hosts

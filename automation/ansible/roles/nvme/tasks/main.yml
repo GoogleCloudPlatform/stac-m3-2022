@@ -1,0 +1,72 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- block:
+
+  - name: probe drives
+    find:
+      paths: /dev
+      patterns: nvme0n*
+      file_type: any
+    register: disks
+    changed_when: false
+
+  - name: create filesystems
+    filesystem:
+      device: '{{ item.path }}'
+      fstype: xfs
+      # opts: -E lazy_itable_init=0,lazy_journal_init=0 -m 0
+    loop: '{{ disks.files }}'
+    loop_control:
+      label: '{{ item.path }}'
+    register: format
+    async: 300
+    poll: 0
+    changed_when: no
+
+  - name: wait for filesystem creation
+    async_status:
+      jid: '{{ item.ansible_job_id }}'
+    loop: '{{ format.results }}'
+    loop_control:
+      label: '{{ item.item.path }}'
+    register: job
+    until: job.finished
+    retries: 60
+    delay: 5
+
+  - name: mount filesystems
+    mount:
+      src: /dev/nvme0n{{ item }}
+      path: '{{ stac_m3_dir }}/data/{{ item }}'
+      fstype: xfs
+      opts: noatime,nodiratime,nofail
+      state: mounted
+    loop: '{{ range(1, disks.files|length + 1) }}'
+
+  - name: remove lost+found
+    file:
+      path: '{{ stac_m3_dir }}/data/{{ item }}/lost+found'
+      state: absent
+    loop: '{{ range(1, disks.files|length + 1) }}'
+
+  - name: sync data from GCS
+    loop: '{{ stac_m3_years }}'
+    script: data.py -y {{ item }} -n {{ inventory_hostname }} -u {{ stac_m3_bucket_url }} {{ ' '.join(groups['stac']) }}
+
+  # - name: trim disks
+  #   command: fstrim -a
+
+  when: not ansible_hostname.startswith('data')
+  become: yes
